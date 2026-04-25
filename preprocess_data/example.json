@@ -1,0 +1,101 @@
+[
+  {
+    "problem_id": 1,
+    "problem": "<image>\nLocate the object described as: \"the lady with the blue shirt\".",
+    "problem_type": "segmentation",
+    "data_type": "image",
+    "data_source": "REFCOCO",
+    "answer": "<answer>{\"positive_points\":[[512,420],[480,360],[548,512]],\"negative_points\":[[650,430],[420,610],[700,600]]}</answer>",
+    "images": [
+      "ref_seg/refcoco/coco2014/train2014/COCO_train2014_000000581857.jpg"
+    ],
+    "reward_extra": {
+      "video_meta": {
+        "video": "refcoco_1",
+        "fps": 1.0,
+        "height": 427,
+        "width": 640,
+        "target_anno_ids": [
+          "1719310"
+        ],
+        "sampled_frame_ids": [
+          0
+        ],
+        "sampled_times": [
+          0.0
+        ],
+        "sampled_frame_paths": [
+          "ref_seg/refcoco/coco2014/train2014/COCO_train2014_000000581857.jpg"
+        ]
+      },
+      "masks": {
+        "1719310": [
+          {
+            "size": [
+              427,
+              640
+            ],
+            "counts": "example-rle-counts"
+          }
+        ]
+      },
+      "feature_dict": "preprocess_data/features/refcoco_1_feature.pt"
+    }
+  },
+  {
+    "problem_id": 2,
+    "problem": "<video>\nLocate the object described as: \"the dog running across the grass\".",
+    "problem_type": "segmentation",
+    "data_type": "video",
+    "data_source": "DAVIS17",
+    "answer": "<answer>{\"time\":1.25,\"positive_points\":[[500,500],[460,430],[540,560]],\"negative_points\":[[620,500],[390,520],[520,650]]}</answer>",
+    "videos": [
+      [
+        "video_datas/davis17/train/JPEGImages/dog/00000.jpg",
+        "video_datas/davis17/train/JPEGImages/dog/00005.jpg"
+      ]
+    ],
+    "reward_extra": {
+      "video_meta": {
+        "video": "dog",
+        "fps": 24.0,
+        "height": 480,
+        "width": 854,
+        "target_anno_ids": [
+          "1"
+        ],
+        "sampled_frame_ids": [
+          0,
+          5
+        ],
+        "sampled_times": [
+          0.0,
+          0.208
+        ],
+        "sampled_frame_paths": [
+          "video_datas/davis17/train/JPEGImages/dog/00000.jpg",
+          "video_datas/davis17/train/JPEGImages/dog/00005.jpg"
+        ]
+      },
+      "masks": {
+        "1": [
+          {
+            "size": [
+              480,
+              854
+            ],
+            "counts": "example-rle-counts"
+          },
+          {
+            "size": [
+              480,
+              854
+            ],
+            "counts": "example-rle-counts"
+          }
+        ]
+      },
+      "feature_dict": "preprocess_data/features/davis17_2_feature.pt"
+    }
+  }
+]
