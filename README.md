@@ -1,4 +1,4 @@
-# NegPoint RL/SFT Training Project
+# NeSeg: An Agentic System for Video Segmentation with Positive and Negative Hints
 
 NegPoint is a vision-language training project for learning segmentation prompts with reinforcement learning and cold-start supervised fine-tuning. It is built on top of EasyR1/veRL and targets image and video object localization tasks where the model must output positive and negative point prompts for a downstream segmentation model such as SAM2.
 ![Comparison](./assets/comparison.png)
@@ -42,3 +42,7 @@ TRAIN_FILE=preprocess_data/expression.json \
 MODEL_PATH=Qwen/Qwen3-VL-4B-Instruct \
 bash local_scripts/run_negpoint_rl.sh
 ```
+
+## Acknowledgements
+We sincerely appreciate the contributions of the open-source community.The related projects are as below:
+[OneThinker](https://github.com/tulerfeng/OneThinker),[EasyR1](https://github.com/hiyouga/EasyR1),[verl](https://github.com/verl-project/verl)
