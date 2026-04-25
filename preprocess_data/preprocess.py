@@ -204,6 +204,21 @@ def sample_positive_points(mask: np.ndarray) -> list[list[int]]:
     return points
 
 
+def sample_random_positive_points(mask: np.ndarray, rng: random.Random) -> list[list[int]]:
+    ys, xs = np.where(mask > 0)
+    if len(xs) == 0:
+        return sample_positive_points(mask)
+
+    indices = list(range(len(xs)))
+    rng.shuffle(indices)
+    indices = indices[:3]
+    height, width = mask.shape
+    points = [normalized_point(int(xs[idx]), int(ys[idx]), width, height) for idx in indices]
+    while len(points) < 3:
+        points.append(points[-1])
+    return points
+
+
 def dino_similarity_score(
     candidate: list[int],
     positive_points: list[list[int]],
@@ -332,13 +347,26 @@ def choose_representative_frame(frame_masks: dict[str, list[Optional[dict[str, A
     return best_idx, best_mask
 
 
-def build_answer(data_type: str, time_value: float, positive_points: list[list[int]], negative_points: list[list[int]]) -> str:
-    payload: dict[str, Any] = {
+def build_tool_call(
+    data_type: str,
+    time_value: float,
+    positive_points: list[list[int]],
+    negative_points: list[list[int]],
+) -> dict[str, Any]:
+    call: dict[str, Any] = {
         "positive_points": positive_points,
         "negative_points": negative_points,
     }
     if data_type == "video":
-        payload = {"time": round(float(time_value), 3), **payload}
+        call = {"time": round(float(time_value), 3), **call}
+    return call
+
+
+def build_answer(tool_calls: list[dict[str, Any]]) -> str:
+    payload = {
+        "tool_calls": tool_calls,
+        "final": {"selected_turn": len(tool_calls)},
+    }
     return f"<answer>{json.dumps(payload, separators=(',', ':'))}</answer>"
 
 
@@ -360,16 +388,24 @@ def sample_record(
     feature_tensor: Optional[torch.Tensor],
     feature_output_path: Optional[str],
     rng: random.Random,
+    sft_tool_calls: int,
 ) -> dict[str, Any]:
     selected_idx, selected_mask = choose_representative_frame(frame_masks)
     selected_dino = None
     if feature_tensor is not None and feature_tensor.dim() == 4 and selected_idx < feature_tensor.shape[0]:
         selected_dino = feature_tensor[selected_idx]
 
-    positive_points = sample_positive_points(selected_mask)
-    negative_points = sample_negative_points(selected_mask, positive_points, selected_dino, rng)
     sampled_times = video_meta.get("sampled_times") or [0.0]
-    answer = build_answer(data_type, sampled_times[selected_idx] if selected_idx < len(sampled_times) else 0.0, positive_points, negative_points)
+    selected_time = sampled_times[selected_idx] if selected_idx < len(sampled_times) else 0.0
+    tool_calls = []
+    for turn_idx in range(max(1, min(int(sft_tool_calls), 3))):
+        if turn_idx == 0:
+            positive_points = sample_positive_points(selected_mask)
+        else:
+            positive_points = sample_random_positive_points(selected_mask, rng)
+        negative_points = sample_negative_points(selected_mask, positive_points, selected_dino, rng)
+        tool_calls.append(build_tool_call(data_type, selected_time, positive_points, negative_points))
+    answer = build_answer(tool_calls)
 
     rel_frames = [to_relative(path, data_root) for path in frame_paths]
     rel_video_meta = dict(video_meta)
@@ -717,6 +753,7 @@ def process_all_samples(args: argparse.Namespace) -> list[dict[str, Any]]:
                     feature_tensor=feature_tensor,
                     feature_output_path=feature_path,
                     rng=rng,
+                    sft_tool_calls=args.sft_tool_calls,
                 )
             )
         except Exception as exc:
@@ -739,12 +776,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--dino_model", type=str, default=os.environ.get("DINO_MODEL", "facebook/dinov2-small"))
     parser.add_argument("--device", type=str, default=None)
     parser.add_argument("--skip_features", action="store_true")
+    parser.add_argument("--sft_tool_calls", type=int, default=1, help="Number of SAM2 tool calls to supervise for Cold Start SFT, clamped to 1-3.")
     parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()
     args.data_root = os.path.abspath(args.data_root)
     args.output_json = os.path.abspath(args.output_json)
     if args.output_features is not None:
         args.output_features = os.path.abspath(args.output_features)
+    args.sft_tool_calls = max(1, min(int(args.sft_tool_calls), 3))
     return args
 
 

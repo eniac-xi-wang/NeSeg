@@ -5,7 +5,7 @@
     "problem_type": "segmentation",
     "data_type": "image",
     "data_source": "REFCOCO",
-    "answer": "<answer>{\"positive_points\":[[512,420],[480,360],[548,512]],\"negative_points\":[[650,430],[420,610],[700,600]]}</answer>",
+    "answer": "<answer>{\"tool_calls\":[{\"positive_points\":[[512,420],[480,360],[548,512]],\"negative_points\":[[650,430],[420,610],[700,600]]}],\"final\":{\"selected_turn\":1}}</answer>",
     "images": [
       "ref_seg/refcoco/coco2014/train2014/COCO_train2014_000000581857.jpg"
     ],
@@ -48,7 +48,7 @@
     "problem_type": "segmentation",
     "data_type": "video",
     "data_source": "DAVIS17",
-    "answer": "<answer>{\"time\":1.25,\"positive_points\":[[500,500],[460,430],[540,560]],\"negative_points\":[[620,500],[390,520],[520,650]]}</answer>",
+    "answer": "<answer>{\"tool_calls\":[{\"time\":1.25,\"positive_points\":[[500,500],[460,430],[540,560]],\"negative_points\":[[620,500],[390,520],[520,650]]}],\"final\":{\"selected_turn\":1}}</answer>",
     "videos": [
       [
         "video_datas/davis17/train/JPEGImages/dog/00000.jpg",
