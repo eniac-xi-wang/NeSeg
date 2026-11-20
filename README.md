@@ -16,14 +16,6 @@ Given a video and a description such as **“the black bird in the green cage,�
 
 ## How NeSeg works
 
-```mermaid
-flowchart LR
-    clip["Frames + referring expression"] --> policy["Qwen2.5-VL policy"]
-    policy -->|"Timestamp and labeled clicks"| sam["SAM 2"]
-    sam -->|"Predicted box and mask grid"| policy
-    policy -->|"Finish"| masks["Latest masks across the clip"]
-```
-
 At each turn the policy sees a bounding box and a **12 × 12 foreground grid** from SAM 2 at the clicked time. If the mask includes part of a neighboring bird, the policy can add a negative click there. If a wing is missing, it can add a positive click on the wing. Clicks accumulate in the same SAM 2 session, including when the policy moves to another frame. The episode returns the latest masks when the policy finishes or reaches the default limit of three calls.
 
 ## Training the policy
@@ -38,26 +30,39 @@ The original project data build produced **30k+ training examples**. The prepara
 
 ## Reward design
 
-Half the default reward comes from the **final video mask**. Point-level terms give the policy feedback about individual clicks, including cases where SAM 2 recovers a good mask from an imprecise prompt.
+For a valid episode with $K \ge 1$ SAM 2 calls, the default reward combines final mask quality, point placement and tool use. The constant $0.05$ is the format reward. An invalid episode, including a finish before the first call, earns zero.
 
-| Signal | Weight | How it is scored |
-| --- | ---: | --- |
-| Final mask IoU | 50% | Sum intersection and union over the sampled frames, then divide. False foreground on target-absent frames counts against the score. |
-| Positive hit | 10% | Fraction of positive clicks inside the target on the selected frame. |
-| Positive distance | 10% | Credit decays with distance to the nearest sampled foreground reference point. |
-| Negative hit | 10% | A negative click earns +1 outside the target and −1 inside it. |
-| Negative DINOv2 similarity | 10% | A correct negative click earns more when its patch resembles the foreground. A click on the target receives zero similarity credit. |
-| Action format | 5% | The episode completes with valid JSON actions and at least one executed segmentation call. |
-| Tool efficiency | 5% | Final mask IoU divided by the number of executed calls. |
+$$
+R = 0.50 J + 0.10 R_{+} + 0.10 R_{-} + 0.05 + 0.05 \frac{J}{K}.
+$$
 
-<details>
-<summary>Scoring details and edge cases</summary>
+The final mask score $J$ pools pixels across all sampled frames. If $\hat M_t$ and $M_t$ are the predicted and annotated foreground masks on frame $t$, then
 
-Points use coordinates from 0 to 1000 on each axis. For positive distance, the score is `exp(-d / s)`, where `d` is measured in pixels and `s` is 10% of the frame diagonal, with a one-pixel minimum. DINOv2 uses the maximum cosine similarity to the sampled foreground references, clipped to [0, 1]. Point scores are averaged within each call and then across calls.
+$$
+J = \frac{\sum_t \lvert \hat M_t \cap M_t \rvert}
+         {\max\!\left(1,\sum_t \lvert \hat M_t \cup M_t \rvert\right)}.
+$$
 
-A malformed action or a finish before the first tool call earns zero for the episode. A call on a frame with no visible target earns zero point credit. [Reward implementation](neseg/reward.py)
+**Positive clicks.** On the frame selected by call $k$, let $m_k(p)$ equal one when click $p$ lands inside the target and zero otherwise. Let $F_k$ be the sampled foreground reference points. A positive click earns credit for hitting the mask and for proximity to its nearest reference.
 
-</details>
+$$
+R_{+} = \left\langle m_k(p) + \exp\!\left(-\frac{d_k(p)}{s_k}\right) \right\rangle_{+},
+\qquad d_k(p) = \min_{q \in F_k} \lVert p-q \rVert_2.
+$$
+
+Distances use pixel coordinates after mapping clicks from the policy's 0–1000 scale. The decay length $s_k$ is 10% of the frame diagonal, with a minimum of one pixel.
+
+**Negative clicks.** A negative click earns $+1$ outside the target and $-1$ inside it. An outside click also earns credit when its DINOv2 patch descriptor $f_k(p)$ resembles a foreground reference.
+
+$$
+\begin{aligned}
+R_{-} &= \left\langle 1 - 2m_k(p) + (1-m_k(p))\,c_k(p) \right\rangle_{-},\\
+c_k(p) &= \operatorname{clip}_{[0,1]}\!\left(\max_{q \in F_k}
+           \cos\!\left(f_k(p), f_k(q)\right)\right).
+\end{aligned}
+$$
+
+The brackets denote an average over clicks of the indicated sign within each call, followed by an equal-weight average over calls. A call with no visible target or no foreground references contributes zero to both point terms. [Reward implementation](neseg/reward.py)
 
 ## Getting started
 
