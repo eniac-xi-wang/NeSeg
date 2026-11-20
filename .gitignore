@@ -216,3 +216,7 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Local NeSeg data and training outputs
+/runs/
+/checkpoints/

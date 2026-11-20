@@ -13,8 +13,15 @@ from tqdm import tqdm
 # ==========================================
 # 数据集路径配置
 # ==========================================
-REF_SEG_BASE = "/home/ma-user/sfs_turbo/qinianwang/datasets/Sa2VA-Training/ref_seg"
-VIDEO_DATAS_BASE = "/home/ma-user/sfs_turbo/qinianwang/datasets/Sa2VA-Training/video_datas"
+if __name__ == "__main__" and not __package__:
+    import sys
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from neseg.protocol import INSTRUCTIONS
+
+DATA_ROOT = Path(os.environ.get("DATA_ROOT", "."))
+REF_SEG_BASE = str(DATA_ROOT / "ref_seg")
+VIDEO_DATAS_BASE = str(DATA_ROOT / "video_datas")
 
 # ref_seg 数据集
 REFCOCO_PATH = os.path.join(REF_SEG_BASE, "refcoco")
@@ -32,15 +39,9 @@ REF_SAV_PATH = os.path.join(VIDEO_DATAS_BASE, "ref_sav")
 # ==========================================
 # Prompt 模板
 # ==========================================
-# 修改 negpoint/dataloader.py 中的 PROMPT_TEMPLATE
-PROMPT_TEMPLATE = """You are a helpful assistant that helps to locate objects in videos based on textual descriptions.
-Please answer the following question: {question}
-Provide your thinking process between the <think> and </think> tags, and then give your final answer between the <answer> and </answer> tags.
-Please choose ONE time within the object(in seconds). 
-For EACH independent object, provide a pair consisting of one positive point (inside the object) and one negative point (outside but near the object).
-
-Answer in the format: 
-"<think>...</think><answer>{{\"time\": <time_in_seconds>, \"point_pairs\": [ {{\"positive\": [x1,y1], \"negative\": [nx1,ny1]}}, {{\"positive\": [x2,y2], \"negative\": [nx2,ny2]}} ]}}</answer>"""
+def video_instruction(expression, times):
+    displayed = ", ".join(f"{value:.3f}" for value in times)
+    return f"Locate the {expression}. Frame times in seconds, in order: {displayed}. {INSTRUCTIONS}"
 
 
 # ==========================================
@@ -203,7 +204,7 @@ def load_ref_dataset(ref_path: str, split: str = "train", dataset_name: str = "r
             }
             
             # 构建 prompt
-            prompt_text = PROMPT_TEMPLATE.format(question=f"Locate the {expression}.")
+            prompt_text = video_instruction(expression, video_meta["sampled_times"])
             prompt = [
                 {
                     "role": "user",
@@ -328,7 +329,7 @@ def load_revos_dataset(split: str = "train") -> List[Dict]:
             }
             
             # 构建 prompt
-            prompt_text = PROMPT_TEMPLATE.format(question=f"Locate the {expression}.")
+            prompt_text = video_instruction(expression, video_meta["sampled_times"])
             prompt = [
                 {
                     "role": "user",
@@ -440,7 +441,7 @@ def load_davis17_dataset(split: str = "train") -> List[Dict]:
             }
             
             # 构建 prompt
-            prompt_text = PROMPT_TEMPLATE.format(question=f"Locate the {expression}.")
+            prompt_text = video_instruction(expression, video_meta["sampled_times"])
             prompt = [
                 {
                     "role": "user",
@@ -549,7 +550,7 @@ def load_mevis_dataset(split: str = "train") -> List[Dict]:
             }
             
             # 构建 prompt
-            prompt_text = PROMPT_TEMPLATE.format(question=f"Locate the {expression}.")
+            prompt_text = video_instruction(expression, video_meta["sampled_times"])
             prompt = [
                 {
                     "role": "user",
@@ -661,7 +662,7 @@ def load_rvos_dataset(split: str = "train") -> List[Dict]:
             }
             
             # 构建 prompt
-            prompt_text = PROMPT_TEMPLATE.format(question=f"Locate the {expression}.")
+            prompt_text = video_instruction(expression, video_meta["sampled_times"])
             prompt = [
                 {
                     "role": "user",
@@ -751,7 +752,7 @@ def load_ref_sav_dataset() -> List[Dict]:
             }
             
             # 构建 prompt
-            prompt_text = PROMPT_TEMPLATE.format(question=f"Locate the {expression}.")
+            prompt_text = video_instruction(expression, video_meta["sampled_times"])
             prompt = [
                 {
                     "role": "user",
@@ -784,7 +785,8 @@ def load_all_datasets(
     load_ref_seg: bool = True,
     load_video_datas: bool = True,
     total_samples: Optional[int] = None,  # 替换原来的 max_samples_per_dataset
-    seed: int = 42 # 固定随机种子，保证每次抽样的桶是可复现的
+    seed: int = 42,  # 固定随机种子，保证每次抽样的桶是可复现的
+    max_samples_per_dataset: Optional[int] = None,
 ) -> DatasetDict:
     """
     加载所有数据集，支持指定总样本量并从各子数据集中均匀随机抽样
@@ -826,6 +828,10 @@ def load_all_datasets(
     # 过滤掉加载失败或为空的数据集
     datasets_dict = {name: data for name, data in datasets_dict.items() if len(data) > 0}
     
+    if max_samples_per_dataset is not None:
+        datasets_dict = {name: random.sample(rows, min(len(rows), max_samples_per_dataset))
+                         for name, rows in datasets_dict.items()}
+
     all_train_samples = []
     
     # ========== 核心逻辑：均匀分桶抽样 ==========
@@ -898,7 +904,7 @@ def create_and_save_dataset(
 # ==========================================
 if __name__ == "__main__":
     dataset = create_and_save_dataset(
-        output_path="/home/ma-user/modelarts/user-job-dir/src/negpoint/hf_dataset",
+        output_path="./runs/hf_dataset",
         load_ref_seg=False,
         load_video_datas=True,
         max_samples_per_dataset=None
