@@ -33,11 +33,12 @@ The original project data build produced **30k+ training examples**. The prepara
 Let $\tau$ be a valid trajectory with $K$ calls to SAM 2. At call $k$, the policy selects frame $t_k$ and supplies positive and negative point sets $P_k^+$ and $P_k^-$. The terminal reward combines the final video IoU $J$ with the mean point rewards at each call.
 
 ```math
-R(\tau) = 0.05 + 0.50\,J + 0.05\,\frac{J}{K}
-+ \frac{0.10}{K}\sum_{k=1}^{K}\left(\bar r_k^+ + \bar r_k^-\right).
+R(\tau) = \lambda_{\mathrm{fmt}} + \lambda_{\mathrm{IoU}} J
++ \lambda_{\mathrm{eff}}\frac{J}{K}
++ \frac{1}{K}\sum_{k=1}^{K}\left(\bar r_k^+ + \bar r_k^-\right).
 ```
 
-The constant rewards a valid action sequence. The term $J/K$ favors fewer calls for the same mask quality. An invalid trajectory, including one that finishes before making a call, receives zero reward.
+The format term $\lambda_{\mathrm{fmt}}$ rewards a valid action sequence. The term $J/K$ favors fewer calls for the same mask quality. An invalid trajectory, including one that finishes before making a call, receives zero reward.
 
 **Video segmentation.** Let $M_t$ and $\hat M_t$ denote the ground-truth and final predicted foreground sets on sampled frame $t$. Intersection and union are accumulated over the entire clip, so foreground predicted on a target-absent frame still counts toward the denominator.
 
@@ -50,24 +51,26 @@ We set $J=0$ when the union is empty.
 **Positive clicks.** Let $F_k$ be the sampled foreground reference points on frame $t_k$. A positive click $p$ receives a binary hit reward and a distance reward that decays with its distance to the nearest reference.
 
 ```math
-r_k^+(p) = \mathbf{1}_{\{p \in M_{t_k}\}}
-+ \exp\left(-\frac{\min_{q \in F_k}\|p-q\|_2}{s_k}\right).
+r_k^+(p) = \lambda_{\mathrm{hit}}^+ \mathbf{1}_{\{p \in M_{t_k}\}}
++ \lambda_{\mathrm{dist}} \exp\left(-\frac{\min_{q \in F_k}\|p-q\|_2}{s_k}\right).
 ```
 
-Distances are measured in pixels. For a frame of height $H_k$ and width $W_k$, the decay length is $s_k=\max(1,0.1\sqrt{H_k^2+W_k^2})$ pixels.
+Distances are measured in pixels. For a frame of height $H_k$ and width $W_k$, the decay length is $s_k=\max(1,\lambda_s\sqrt{H_k^2+W_k^2})$ pixels.
 
-**Negative clicks.** Let $\phi_k(p)$ be the normalized DINOv2 patch descriptor at $p$ on the selected frame. A negative click inside the target incurs a penalty. A click on the background earns a unit reward plus the positive part of its highest cosine similarity to the foreground references.
+**Negative clicks.** Let $\phi_k(p)$ be the normalized DINOv2 patch descriptor at $p$ on the selected frame. A negative click inside the target incurs a penalty. A background click earns a hit reward and a similarity bonus proportional to the positive part of its highest cosine similarity to the foreground references.
 
 ```math
 r_k^-(p) =
 \begin{cases}
--1, & p \in M_{t_k},\\
-1 + \max\left(0,\,\max_{q \in F_k}\phi_k(p)^\top \phi_k(q)\right),
+-\lambda_{\mathrm{hit}}^-, & p \in M_{t_k},\\
+\lambda_{\mathrm{hit}}^- + \lambda_{\mathrm{DINO}} \max\left(0,\,\max_{q \in F_k}\phi_k(p)^\top \phi_k(q)\right),
 & p \notin M_{t_k}.
 \end{cases}
 ```
 
-For each sign, $\bar r_k^{\pm}=|P_k^{\pm}|^{-1}\sum_{p\in P_k^{\pm}}r_k^{\pm}(p)$. This gives every call equal weight even when the number of clicks varies. Both point terms are zero for a call with an empty target mask or no foreground references. [Reward implementation](neseg/reward.py)
+For each sign, $\bar r_k^{\pm}=|P_k^{\pm}|^{-1}\sum_{p\in P_k^{\pm}}r_k^{\pm}(p)$. This gives every call equal weight even when the number of clicks varies. Both point terms are zero for a call with an empty target mask or no foreground references.
+
+**Default values.** We use $\lambda_{\mathrm{fmt}}=\lambda_{\mathrm{eff}}=0.05$ and $\lambda_{\mathrm{IoU}}=0.50$ for the trajectory terms. The four point weights default to $\lambda_{\mathrm{hit}}^+=\lambda_{\mathrm{dist}}=\lambda_{\mathrm{hit}}^-=\lambda_{\mathrm{DINO}}=0.10$. The distance scale uses a fixed fraction $\lambda_s=0.10$ of the frame diagonal. [Reward implementation](neseg/reward.py)
 
 ## Getting started
 
