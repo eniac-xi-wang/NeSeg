@@ -30,39 +30,44 @@ The original project data build produced **30k+ training examples**. The prepara
 
 ## Reward design
 
-For a valid episode with $K \ge 1$ SAM 2 calls, the default reward combines final mask quality, point placement and tool use. The constant $0.05$ is the format reward. An invalid episode, including a finish before the first call, earns zero.
+Let $\tau$ be a valid trajectory with $K$ calls to SAM 2. At call $k$, the policy selects frame $t_k$ and supplies positive and negative point sets $P_k^+$ and $P_k^-$. The terminal reward combines the final video IoU $J$ with the mean point rewards at each call.
 
-$$
-R = 0.50 J + 0.10 R_{+} + 0.10 R_{-} + 0.05 + 0.05 \frac{J}{K}.
-$$
+```math
+R(\tau) = 0.05 + 0.50\,J + 0.05\,\frac{J}{K}
++ \frac{0.10}{K}\sum_{k=1}^{K}\left(\bar r_k^+ + \bar r_k^-\right).
+```
 
-The final mask score $J$ pools pixels across all sampled frames. If $\hat M_t$ and $M_t$ are the predicted and annotated foreground masks on frame $t$, then
+The constant rewards a valid action sequence. The term $J/K$ favors fewer calls for the same mask quality. An invalid trajectory, including one that finishes before making a call, receives zero reward.
 
-$$
-J = \frac{\sum_t \lvert \hat M_t \cap M_t \rvert}
-         {\max\!\left(1,\sum_t \lvert \hat M_t \cup M_t \rvert\right)}.
-$$
+**Video segmentation.** Let $M_t$ and $\hat M_t$ denote the ground-truth and final predicted foreground sets on sampled frame $t$. Intersection and union are accumulated over the entire clip, so foreground predicted on a target-absent frame still counts toward the denominator.
 
-**Positive clicks.** On the frame selected by call $k$, let $m_k(p)$ equal one when click $p$ lands inside the target and zero otherwise. Let $F_k$ be the sampled foreground reference points. A positive click earns credit for hitting the mask and for proximity to its nearest reference.
+```math
+J = \frac{\sum_t |\hat M_t \cap M_t|}{\sum_t |\hat M_t \cup M_t|}.
+```
 
-$$
-R_{+} = \left\langle m_k(p) + \exp\!\left(-\frac{d_k(p)}{s_k}\right) \right\rangle_{+},
-\qquad d_k(p) = \min_{q \in F_k} \lVert p-q \rVert_2.
-$$
+We set $J=0$ when the union is empty.
 
-Distances use pixel coordinates after mapping clicks from the policy's 0–1000 scale. The decay length $s_k$ is 10% of the frame diagonal, with a minimum of one pixel.
+**Positive clicks.** Let $F_k$ be the sampled foreground reference points on frame $t_k$. A positive click $p$ receives a binary hit reward and a distance reward that decays with its distance to the nearest reference.
 
-**Negative clicks.** A negative click earns $+1$ outside the target and $-1$ inside it. An outside click also earns credit when its DINOv2 patch descriptor $f_k(p)$ resembles a foreground reference.
+```math
+r_k^+(p) = \mathbf{1}_{\{p \in M_{t_k}\}}
++ \exp\left(-\frac{\min_{q \in F_k}\|p-q\|_2}{s_k}\right).
+```
 
-$$
-\begin{aligned}
-R_{-} &= \left\langle 1 - 2m_k(p) + (1-m_k(p))\,c_k(p) \right\rangle_{-},\\
-c_k(p) &= \operatorname{clip}_{[0,1]}\!\left(\max_{q \in F_k}
-           \cos\!\left(f_k(p), f_k(q)\right)\right).
-\end{aligned}
-$$
+Distances are measured in pixels. For a frame of height $H_k$ and width $W_k$, the decay length is $s_k=\max(1,\,0.1\sqrt{H_k^2+W_k^2})$ pixels.
 
-The brackets denote an average over clicks of the indicated sign within each call, followed by an equal-weight average over calls. A call with no visible target or no foreground references contributes zero to both point terms. [Reward implementation](neseg/reward.py)
+**Negative clicks.** Let $\phi_k(p)$ be the normalized DINOv2 patch descriptor at $p$ on the selected frame. A negative click inside the target incurs a penalty. A click on the background earns a unit reward plus the positive part of its highest cosine similarity to the foreground references.
+
+```math
+r_k^-(p) =
+\begin{cases}
+-1, & p \in M_{t_k},\\
+1 + \max\left(0,\,\max_{q \in F_k}\phi_k(p)^\top \phi_k(q)\right),
+& p \notin M_{t_k}.
+\end{cases}
+```
+
+For each sign, $\bar r_k^{\pm}=|P_k^{\pm}|^{-1}\sum_{p\in P_k^{\pm}}r_k^{\pm}(p)$. This gives every call equal weight even when the number of clicks varies. Both point terms are zero for a call with an empty target mask or no foreground references. [Reward implementation](neseg/reward.py)
 
 ## Getting started
 
