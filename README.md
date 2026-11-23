@@ -54,7 +54,7 @@ r_k^+(p) = \mathbf{1}_{\{p \in M_{t_k}\}}
 + \exp\left(-\frac{\min_{q \in F_k}\|p-q\|_2}{s_k}\right).
 ```
 
-Distances are measured in pixels. For a frame of height $H_k$ and width $W_k$, the decay length is $s_k=\max(1,\,0.1\sqrt{H_k^2+W_k^2})$ pixels.
+Distances are measured in pixels. For a frame of height $H_k$ and width $W_k$, the decay length is $s_k=\max(1,0.1\sqrt{H_k^2+W_k^2})$ pixels.
 
 **Negative clicks.** Let $\phi_k(p)$ be the normalized DINOv2 patch descriptor at $p$ on the selected frame. A negative click inside the target incurs a penalty. A click on the background earns a unit reward plus the positive part of its highest cosine similarity to the foreground references.
 
