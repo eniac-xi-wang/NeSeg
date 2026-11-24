@@ -1,13 +1,5 @@
 <h1 align="center">NeSeg: Multi-Turn Video Object Segmentation<br>with Positive and Negative Point Prompts</h1>
 
-<p align="center">
-  <a href="#how-neseg-works">Method</a> ·
-  <a href="#training-the-policy">Training strategy</a> ·
-  <a href="#reward-design">Rewards</a> ·
-  <a href="#getting-started">Getting started</a> ·
-  <a href="#inference">Inference</a>
-</p>
-
 Given a video and a description such as **“the black bird in the green cage,”** NeSeg learns where to click and when to correct a mask. Qwen2.5-VL chooses a frame, places positive points on the bird and uses negative points to exclude nearby regions. A frozen SAM 2 turns those clicks into masks and tracks the target through the sampled frames.
 
 ![Two views of birds in adjacent cages. In the right panel, positive clicks land on the black bird inside the green cage and negative clicks mark nearby regions.](assets/comparison.png)
@@ -70,11 +62,11 @@ r_k^-(p) =
 
 For each sign, $\bar r_k^{\pm}=|P_k^{\pm}|^{-1}\sum_{p\in P_k^{\pm}}r_k^{\pm}(p)$. This gives every call equal weight even when the number of clicks varies. Both point terms are zero for a call with an empty target mask or no foreground references.
 
-**Default values.** We use $\lambda_{\mathrm{fmt}}=\lambda_{\mathrm{eff}}=0.05$ and $\lambda_{\mathrm{IoU}}=0.50$ for the trajectory terms. The four point weights default to $\lambda_{\mathrm{hit}}^+=\lambda_{\mathrm{dist}}=\lambda_{\mathrm{hit}}^-=\lambda_{\mathrm{DINO}}=0.10$. The distance scale uses a fixed fraction $\lambda_s=0.10$ of the frame diagonal. [Reward implementation](neseg/reward.py)
+**Default values.** We use $\lambda_{\mathrm{fmt}}=\lambda_{\mathrm{eff}}=0.05$ and $\lambda_{\mathrm{IoU}}=0.50$ for the trajectory terms. The four point weights default to $\lambda_{\mathrm{hit}}^+=\lambda_{\mathrm{dist}}=\lambda_{\mathrm{hit}}^-=\lambda_{\mathrm{DINO}}=0.10$. The distance scale uses a fixed fraction $\lambda_s=0.10$ of the frame diagonal.
 
 ## Getting started
 
-Run the following commands from the repository root in a Linux CUDA environment. The bundled EasyR1 version uses the upstream image `hiyouga/verl:ngc-th2.8.0-cu12.9-vllm0.11.0`. [EasyR1 upstream revision](https://github.com/hiyouga/EasyR1/tree/3f527bd266f964f33c6cd6ec83ac85a6a9e5bf37)
+Run the following commands from the repository root in a Linux CUDA environment. The bundled EasyR1 revision (`3f527bd`) uses the upstream image `hiyouga/verl:ngc-th2.8.0-cu12.9-vllm0.11.0`.
 
 ### Install the dependencies
 
@@ -99,7 +91,7 @@ The default SAM 2 config matches the Tiny checkpoint linked below. Set `SAM2_CON
 | RVOS | `rvos/meta_expressions/train/meta_expressions.json`, `rvos/mask_dict.pkl`, and `rvos/train/JPEGImages/<video>/` |
 | Ref-SAV | `Ref-SAV.json` and `sam_v_full/` containing the referenced videos and masklet annotations |
 
-Ref-SAV uses every fourth frame of the 24 fps source video to align with the 6 fps masks. Selected JPEGs are cached in `video_datas/.neseg_frames/`. ReVOS and RVOS default to 5 fps. Set `--revos_fps` or `--rvos_fps` to match your extraction. [Sa2VA data layout](https://github.com/bytedance/Sa2VA/tree/main/projects/sa2va) · [SA-V annotations](https://github.com/facebookresearch/sam2/tree/main/sav_dataset)
+Ref-SAV uses every fourth frame of the 24 fps source video to align with the 6 fps masks. Selected JPEGs are cached in `video_datas/.neseg_frames/`. ReVOS and RVOS default to 5 fps. Set `--revos_fps` or `--rvos_fps` to match your extraction.
 
 </details>
 
@@ -151,4 +143,4 @@ python -m neseg.infer --policy runs/sft/policy \
   --expression "the dog running behind the cyclist" --output runs/masks
 ```
 
-For a GRPO checkpoint, export the actor to Hugging Face format and pass the exported directory to `--policy`. [EasyR1 model merger](site-packages/easyr1/scripts/model_merger.py)
+For a GRPO checkpoint, export the actor to Hugging Face format with `site-packages/easyr1/scripts/model_merger.py` and pass the exported directory to `--policy`.
