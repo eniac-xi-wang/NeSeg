@@ -1,5 +1,13 @@
 <h1 align="center">NeSeg: Multi-Turn Video Object Segmentation<br>with Positive and Negative Point Prompts</h1>
 
+<p align="center">
+  <a href="#how-neseg-works">Method</a> ·
+  <a href="#training-the-policy">Training strategy</a> ·
+  <a href="#reward-design">Rewards</a> ·
+  <a href="#getting-started">Getting started</a> ·
+  <a href="#inference">Inference</a>
+</p>
+
 Given a video and a description such as **“the black bird in the green cage,”** NeSeg learns where to click and when to correct a mask. Qwen2.5-VL chooses a frame, places positive points on the bird and uses negative points to exclude nearby regions. A frozen SAM 2 turns those clicks into masks and tracks the target through the sampled frames.
 
 ![Two views of birds in adjacent cages. In the right panel, positive clicks land on the black bird inside the green cage and negative clicks mark nearby regions.](assets/comparison.png)
